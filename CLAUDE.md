@@ -12,7 +12,7 @@ Firestore; hosted on Firebase Hosting. No accounts: the trip code is the key.
 ```bash
 npm run dev          # Vite dev server
 npm test             # unit tests (vitest): src/logic.test.js
-npm run emulators    # local Firestore emulator (needs Java 21+), project demo-splitter
+npm run emulators    # local Firestore + Auth emulators (needs Java 21+), project demo-splitter
 npm run e2e          # Playwright browser checks (need emulator + dev server; see e2e/README.md)
 npm run build        # production build to dist/
 npm run deploy       # firebase deploy hosting + firestore rules (predeploy rebuilds and verifies)
@@ -29,7 +29,7 @@ build that points at the emulator. This exact mistake once took the live app dow
 | --- | --- |
 | `src/logic.js` | Pure money logic: `parseAmount`, `distribute` (largest remainder), `expenseShares`, `computeBalances` (→ balances/paid/spent), `suggestSettlements` (simplified), `pairwiseDebts` (direct). Unit-tested. |
 | `src/api.js` | All Firestore access. People changes go through a transaction (`mutatePeople`). |
-| `src/firebase.js` | SDK init. Persistent offline cache plus **forced long-polling** (flaky mobile networks break streaming). Config defaults are inlined; `VITE_FIREBASE_*` env vars override them. |
+| `src/firebase.js` | SDK init. Persistent offline cache plus **forced long-polling** (flaky mobile networks break streaming). Config defaults are inlined; `VITE_FIREBASE_*` env vars override them. App Check, plus silent anonymous Auth (`ensureUser()`, `currentUid()`). |
 | `src/sw.js` | Service worker (vite-plugin-pwa `injectManifest`). See "Updates" below. |
 | `src/router.js` | Tiny history router: `/` and `/t/:CODE`. |
 | `src/storage.js` | localStorage: who you are per trip (`me:CODE`), recent trips, install hint dismissed. |
@@ -49,26 +49,37 @@ build that points at the emulator. This exact mistake once took the live app dow
 
 ```
 trips/{CODE}                      CODE = 8 chars from 23456789ABCDEFGHJKLMNPQRSTUVWXYZ
-  name, currency (symbol string), createdAt
-  people: [{ id, name }]          id = random hex; order = avatar colour
+  name, currency (symbol string), createdAt, createdUid?   (older trips have no createdUid)
+  people: [{ id, name }]          APPEND-ONLY (rules). id = random hex; order = avatar colour
+  personMeta?: { id: { name?, removed? } }   renames and soft removals, overlaid by tripPeople()
   simplify?: bool                 absent => ON (only an explicit false turns it off)
 
 trips/{CODE}/entries/{id}
   expense: { type:'expense', title, amount, paidBy, date:'YYYY-MM-DD',
              split:{ mode:'equal'|'exact'|'shares', parts:{ personId: n } },
-             createdAt, updatedAt, createdBy, updatedBy?, deletedAt?, deletedBy? }
+             createdAt, updatedAt, createdBy, updatedBy?, deletedAt?, deletedBy?,
+             createdUid?, updatedUid }
            equal: parts = {id: 1}; exact: parts = {id: minor units}; shares: parts = {id: weight}
   payment: { type:'payment', from, to, amount, date, note, createdAt, updatedAt, createdBy,
-             updatedBy?, deletedAt?, deletedBy? }
+             updatedBy?, deletedAt?, deletedBy?, createdUid?, updatedUid }
 ```
 
 - **Entries are never hard-deleted** (the rules deny it). Delete sets `deletedAt`/`deletedBy`
   (`deleteEntry`), restore removes them (`restoreEntry`); the rules only let those two touch the
   bookkeeping fields. `splitDeleted()` separates live entries from the "Recently deleted" list:
   only live entries go into balances, totals and `isPersonUsed`. A deleted entry that mentions a
-  removed person can't be restored (`canRestore`).
-- `createdAt`, `createdBy` and `type` can't change after creation. `*By` fields are person ids the
-  client claims (no accounts), so they're an audit trail for honest users, not proof.
+  removed person can't be restored until that person is brought back (`canRestore`).
+- **People are never dropped either.** The rules make `people` append-only (existing items must stay
+  identical, new ones only at the end). Renaming writes `personMeta.<id>.name`; removing writes
+  `personMeta.<id>.removed` (People tab → Removed → Restore undoes it). Adding a name that matches a
+  removed person brings that person back (same id). Use `tripPeople(trip)` everywhere: `Trip.jsx`
+  passes `people` (active) and `allPeople` (incl. removed, for names/colours of old entries).
+- **Writes need a signed-in device.** The app signs in anonymously and silently (no login screen).
+  The rules require `createdUid`/`updatedUid` == `request.auth.uid`, so they're trustworthy
+  per-device stamps. `createdBy`/`updatedBy`/`deletedBy` are the person a device *claims* to be,
+  so they're a courtesy trail. Edits must pass the original `createdUid` through (the forms do).
+  Reads stay open to anyone with the code.
+- `createdAt`, `createdBy`, `createdUid` and `type` can't change after creation.
 
 - **All money is integer minor units (paise/cents).** Never use floats for amounts.
 - `stats.spent[id]` = that person's share of expenses (the People tab "cost per person");
@@ -77,7 +88,7 @@ trips/{CODE}/entries/{id}
 - The rules use `keys().hasOnly([...])`. **Any new field must be added to `firestore.rules`**, or
   writes will be rejected, then deployed with `npx firebase deploy --only firestore:rules`. New rules
   take about a minute to propagate.
-- A person can't be removed while any entry references them (`isPersonUsed`).
+- A person can't be removed while any live entry references them (`isPersonUsed`).
 
 ## Hosting, updates and PWA
 
@@ -104,12 +115,16 @@ trips/{CODE}/entries/{id}
 ## Security
 
 - The Firebase web API key in `src/firebase.js` is public by design. In Google Cloud it's restricted
-  to the Cloud Firestore and Firebase App Check APIs, and to the splitbox/splitter-61a04/localhost
+  to the Cloud Firestore, Firebase App Check, Identity Toolkit and Token Service APIs (the last two
+  are for Auth), and to the splitbox/splitter-61a04/localhost
   referrers. Firestore itself ignores the key; **the rules are the real protection** (get by exact
   code only, no listing, schema validation, no hard deletes). If you add a custom domain, add it to
   the key's referrers (Google Cloud Console → APIs & Services → Credentials) and to the reCAPTCHA
   key's domains.
 - **App Check** is on: see "App Check" below.
+- **Anonymous Auth** must stay enabled (Firebase console → Authentication → Sign-in method →
+  Anonymous). If it's turned off, every write fails. Auth uses `initializeAuth` without a
+  popup/redirect resolver, so no firebaseapp.com iframe loads (and the CSP doesn't allow one).
 - `firebase.json` sends a strict CSP plus `Referrer-Policy: strict-origin` (not `no-referrer`:
   the API key's referrer restriction needs the origin), `X-Frame-Options: DENY` and `nosniff`.
   **Any new third-party host (script, API, font, image) must be added to the CSP**, or the browser

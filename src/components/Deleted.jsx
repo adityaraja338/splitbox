@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { restoreEntry } from '../api.js';
-import { canRestore, formatMoney } from '../logic.js';
+import { canRestore, entryPeople, formatMoney } from '../logic.js';
 import { Modal } from './ui.jsx';
 
 function when(ts) {
@@ -11,7 +11,9 @@ function when(ts) {
 /** Soft-deleted expenses and payments, with Restore. Nothing is ever permanently deleted. */
 export default function Deleted({ code, entries, people, byId, me, currency, onClose, flash }) {
   const [busy, setBusy] = useState(null);
-  const name = (id) => byId[id]?.name || 'someone (removed)';
+  const name = (id) => byId[id]?.name || 'someone';
+  const active = new Set(people.map((p) => p.id));
+  const gone = (e) => entryPeople(e).filter((id) => !active.has(id)).map(name);
 
   async function restore(e) {
     setBusy(e.id);
@@ -31,6 +33,7 @@ export default function Deleted({ code, entries, people, byId, me, currency, onC
       <ul className="list deleted-list">
         {entries.map((e) => {
           const ok = canRestore(e, people);
+          const missing = ok ? [] : [...new Set(gone(e))];
           const by = e.deletedBy && byId[e.deletedBy]?.name;
           return (
             <li key={e.id} className="list-item">
@@ -41,7 +44,11 @@ export default function Deleted({ code, entries, people, byId, me, currency, onC
                 <div className="muted small">
                   {formatMoney(e.amount, currency)} · deleted {when(e.deletedAt)}{by ? ` by ${by}` : ''}
                 </div>
-                {!ok && <div className="small neg">Involves someone who was removed from the trip</div>}
+                {!ok && (
+                  <div className="small neg">
+                    {missing.join(', ')} {missing.length > 1 ? 'were' : 'was'} removed from the trip. Bring them back in People to restore this.
+                  </div>
+                )}
               </div>
               <button className="btn small-btn" disabled={!ok || busy === e.id} onClick={() => restore(e)}>Restore</button>
             </li>

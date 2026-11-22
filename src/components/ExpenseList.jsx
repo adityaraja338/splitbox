@@ -12,7 +12,7 @@ function dateLabel(d) {
   return dt.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: dt.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
 }
 
-export default function ExpenseList({ entries, byId, me, currency, onOpen, onAdd, hasPeople }) {
+export default function ExpenseList({ entries, byId, activeCount, me, currency, onOpen, onAdd, hasPeople }) {
   if (!entries.length) {
     return (
       <div className="empty">
@@ -31,7 +31,7 @@ export default function ExpenseList({ entries, byId, me, currency, onOpen, onAdd
     if (last && last.date === e.date) last.items.push(e);
     else groups.push({ date: e.date, items: [e] });
   }
-  const name = (id) => byId[id]?.name || 'Someone (removed)';
+  const name = (id) => byId[id]?.name || 'Someone';
 
   return (
     <div className="expense-list">
@@ -70,7 +70,7 @@ export default function ExpenseList({ entries, byId, me, currency, onOpen, onAdd
                   <div className="grow">
                     <div className="strong clamp-2" title={e.title}>{e.title}</div>
                     <div className="muted small">
-                      {e.paidBy === me ? 'You' : name(e.paidBy)} paid · {n === Object.keys(byId).length ? 'everyone' : `${n} ${n === 1 ? 'person' : 'people'}`}
+                      {e.paidBy === me ? 'You' : name(e.paidBy)} paid · {n === activeCount ? 'everyone' : `${n} ${n === 1 ? 'person' : 'people'}`}
                       {e.split?.mode !== 'equal' && ` · ${e.split?.mode === 'exact' ? 'exact amounts' : 'by shares'}`}
                     </div>
                   </div>

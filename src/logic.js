@@ -158,6 +158,19 @@ export function suggestSettlements(balances) {
   return out;
 }
 
+/**
+ * Everyone ever added to the trip, in order: [{ id, name, removed }]. The stored people list is
+ * append-only; renames and removals are overlaid from trip.personMeta.
+ */
+export function tripPeople(trip) {
+  const meta = trip?.personMeta || {};
+  return (trip?.people || []).map((p) => ({
+    id: p.id,
+    name: meta[p.id]?.name || p.name,
+    removed: Boolean(meta[p.id]?.removed),
+  }));
+}
+
 /** Person ids an entry refers to. */
 export function entryPeople(e) {
   return e.type === 'payment' ? [e.from, e.to] : [e.paidBy, ...Object.keys(e.split?.parts || {})];

@@ -5,7 +5,7 @@ import { Modal, AuditLine } from './ui.jsx';
 
 const today = () => new Date().toLocaleDateString('en-CA'); // yyyy-mm-dd in local time
 
-export default function PaymentForm({ code, people, me, currency, entry, preset, onClose, flash }) {
+export default function PaymentForm({ code, people, allPeople, me, currency, entry, preset, onClose, flash }) {
   const isEdit = Boolean(entry);
   const init = entry || preset || {};
   const [from, setFrom] = useState(init.from || me || people[0]?.id || '');
@@ -25,7 +25,7 @@ export default function PaymentForm({ code, people, me, currency, entry, preset,
     setBusy(true);
     const data = { type: 'payment', from, to, amount, date, note: note.trim() };
     try {
-      if (isEdit) await updateEntry(code, entry.id, { ...data, createdAt: entry.createdAt, createdBy: entry.createdBy ?? null }, me);
+      if (isEdit) await updateEntry(code, entry.id, { ...data, createdAt: entry.createdAt, createdBy: entry.createdBy ?? null, createdUid: entry.createdUid ?? null }, me);
       else addEntry(code, { ...data, createdBy: me || null }).catch((er) => flash(`Failed to save: ${er.message}`));
       flash(isEdit ? 'Payment updated' : 'Payment recorded');
       onClose();
@@ -88,7 +88,7 @@ export default function PaymentForm({ code, people, me, currency, entry, preset,
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="via UPI" maxLength={100} />
         </label>
         {error && <p className="error">{error}</p>}
-        {isEdit && <AuditLine entry={entry} people={people} />}
+        {isEdit && <AuditLine entry={entry} people={allPeople || people} />}
       </form>
     </Modal>
   );

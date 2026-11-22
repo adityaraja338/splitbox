@@ -395,3 +395,5 @@ input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--primary)
 /* "Added by … · last edited by …" under edit forms */
 .audit { margin: 12px 0 0; }
 .deleted-list .list-item:last-child { border-bottom: 0; }
+.removed-people h4 { margin: 0 0 4px; font-weight: 600; }
+.removed-people .list-item:last-child { border-bottom: 0; }

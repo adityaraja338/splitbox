@@ -1,22 +1,37 @@
 rules_version = '2';
 
-// No-auth model: knowing a trip's code (≈ 1 in 10^12 guess) is what grants access.
+// No-accounts model: knowing a trip's code (≈ 1 in 10^12 guess) is what grants access.
 // - Trips can be fetched by code but never listed, so codes can't be enumerated.
 // - Writes are schema-validated so the database can't be filled with junk shapes.
 // - Entries are never hard-deleted: "delete" sets deletedAt, so anything removed can be restored.
 // - createdAt/createdBy/type can't be rewritten after the fact.
-// Note: createdBy/updatedBy/deletedBy are person ids the client claims (there are no accounts),
-// so they're an honest-user audit trail, not proof of who did it.
+// - Every write needs a signed-in device (silent Firebase Anonymous Auth, no login screen), and
+//   createdUid/updatedUid are stamped with that device's uid, so they can't be faked.
+//   createdBy/updatedBy/deletedBy are the person ids the device *claims* to be ("I'm Bob").
+// - A trip's people list is append-only: nobody can be dropped from it. Renames and removals live
+//   in personMeta ({ id: { name?, removed? } }), so they're always reversible.
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function validTrip(d) {
-      return d.keys().hasOnly(['name', 'currency', 'people', 'createdAt', 'simplify'])
+      return d.keys().hasOnly(['name', 'currency', 'people', 'createdAt', 'simplify', 'personMeta', 'createdUid'])
         && d.name is string && d.name.size() > 0 && d.name.size() <= 80
         && d.currency is string && d.currency.size() <= 6
         && d.people is list && d.people.size() <= 100
         && d.createdAt is timestamp
-        && (!('simplify' in d) || d.simplify is bool);
+        && (!('simplify' in d) || d.simplify is bool)
+        && (!('personMeta' in d) || (d.personMeta is map && d.personMeta.size() <= 100))
+        && (!('createdUid' in d) || d.createdUid is string);
+    }
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Existing people stay exactly as they are; new ones can only be added at the end.
+    function peopleAppendOnly(after, before) {
+      return after.people.size() >= before.people.size()
+        && after.people[0:before.people.size()] == before.people;
     }
 
     function validParts(p) {
@@ -37,17 +52,19 @@ service cloud.firestore {
         && d.date is string && d.date.size() <= 10
         && (d.createdBy == null || d.createdBy is string)
         && optId(d, 'updatedBy') && optId(d, 'deletedBy')
+        && (!('createdUid' in d) || d.createdUid == null || d.createdUid is string)
+        && d.updatedUid == request.auth.uid
         && (!('deletedAt' in d) || d.deletedAt is timestamp)
         && validAmount(d.amount)
         && (
           (d.type == 'expense'
-            && d.keys().hasOnly(['type', 'title', 'amount', 'paidBy', 'date', 'split', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'deletedAt', 'deletedBy'])
+            && d.keys().hasOnly(['type', 'title', 'amount', 'paidBy', 'date', 'split', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'deletedAt', 'deletedBy', 'createdUid', 'updatedUid'])
             && d.title is string && d.title.size() > 0 && d.title.size() <= 100
             && d.paidBy is string
             && d.split is map && d.split.mode in ['equal', 'exact', 'shares'] && validParts(d.split.parts))
           ||
           (d.type == 'payment'
-            && d.keys().hasOnly(['type', 'from', 'to', 'amount', 'date', 'note', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'deletedAt', 'deletedBy'])
+            && d.keys().hasOnly(['type', 'from', 'to', 'amount', 'date', 'note', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'deletedAt', 'deletedBy', 'createdUid', 'updatedUid'])
             && d.from is string && d.to is string && d.from != d.to
             && d.note is string && d.note.size() <= 100)
         );
@@ -55,7 +72,7 @@ service cloud.firestore {
 
     // Delete/restore may only touch the bookkeeping fields, never the content.
     function onlyBookkeeping(after, before) {
-      return after.diff(before).affectedKeys().hasOnly(['deletedAt', 'deletedBy', 'updatedAt', 'updatedBy']);
+      return after.diff(before).affectedKeys().hasOnly(['deletedAt', 'deletedBy', 'updatedAt', 'updatedBy', 'updatedUid']);
     }
 
     function validEntryUpdate(after, before) {
@@ -63,6 +80,7 @@ service cloud.firestore {
         && after.type == before.type
         && after.createdAt == before.createdAt
         && after.get('createdBy', null) == before.get('createdBy', null)
+        && after.get('createdUid', null) == before.get('createdUid', null)
         && (
           // edit a live entry
           (!('deletedAt' in before) && !('deletedAt' in after))
@@ -76,20 +94,27 @@ service cloud.firestore {
     match /trips/{code} {
       allow get: if true;
       allow list: if false;
-      allow create: if code.matches('^[2-9A-Z]{6,16}$')
+      allow create: if signedIn()
+        && code.matches('^[2-9A-Z]{6,16}$')
         && validTrip(request.resource.data)
-        && request.resource.data.createdAt == request.time;
-      allow update: if validTrip(request.resource.data)
-        && request.resource.data.createdAt == resource.data.createdAt;
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.createdUid == request.auth.uid;
+      allow update: if signedIn()
+        && validTrip(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.get('createdUid', null) == resource.data.get('createdUid', null)
+        && peopleAppendOnly(request.resource.data, resource.data);
       allow delete: if false;
 
       match /entries/{entryId} {
         allow read: if true;
-        allow create: if exists(/databases/$(database)/documents/trips/$(code))
+        allow create: if signedIn()
+          && exists(/databases/$(database)/documents/trips/$(code))
           && validEntry(request.resource.data)
           && !('deletedAt' in request.resource.data) && !('deletedBy' in request.resource.data)
-          && request.resource.data.createdAt == request.time;
-        allow update: if validEntryUpdate(request.resource.data, resource.data);
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.createdUid == request.auth.uid;
+        allow update: if signedIn() && validEntryUpdate(request.resource.data, resource.data);
         allow delete: if false;
       }
     }

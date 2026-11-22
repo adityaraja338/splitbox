@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { addPerson, renamePerson, removePerson, updateTrip } from '../api.js';
+import { addPerson, renamePerson, removePerson, restorePerson, updateTrip } from '../api.js';
 import { isPersonUsed, formatMoney } from '../logic.js';
 import { Avatar, CURRENCIES } from './ui.jsx';
 
-export default function People({ trip, code, entries, me, stats, flash, onPickMe }) {
+export default function People({ trip, code, people, allPeople, entries, me, stats, flash, onPickMe }) {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState(null);
@@ -40,9 +40,24 @@ export default function People({ trip, code, entries, me, stats, flash, onPickMe
       flash(`${p.name} is part of some expenses. Delete or edit those first.`);
       return;
     }
-    if (!confirm(`Remove ${p.name} from this trip?`)) return;
-    await removePerson(code, p.id);
+    if (!confirm(`Remove ${p.name} from this trip? You can bring them back later.`)) return;
+    try {
+      await removePerson(code, p.id);
+    } catch (er) {
+      flash(er.message);
+    }
   }
+
+  async function restore(p) {
+    try {
+      await restorePerson(code, p.id);
+      flash(`${p.name} is back in the trip`);
+    } catch (er) {
+      flash(er.message);
+    }
+  }
+
+  const removed = allPeople.filter((p) => p.removed);
 
   async function saveTrip(fields) {
     try {
@@ -63,7 +78,7 @@ export default function People({ trip, code, entries, me, stats, flash, onPickMe
           </button>
         </div>
         <ul className="list cost-list">
-          {trip.people.map((p) => {
+          {people.map((p) => {
             const cost = stats.spent[p.id] || 0;
             return (
               <li key={p.id} className="cost-row">
@@ -92,7 +107,7 @@ export default function People({ trip, code, entries, me, stats, flash, onPickMe
             );
           })}
         </ul>
-        {!editMode && trip.people.length > 0 && (
+        {!editMode && people.length > 0 && (
           <div className="cost-total">
             <span>Total</span>
             <span>{formatMoney(Object.values(stats.spent).reduce((a, b) => a + b, 0), cur)}</span>
@@ -103,6 +118,20 @@ export default function People({ trip, code, entries, me, stats, flash, onPickMe
           <button className="btn" disabled={!name.trim()}>Add</button>
         </form>
         {error && <p className="error">{error}</p>}
+        {removed.length > 0 && (
+          <div className="removed-people top-gap">
+            <h4 className="muted small">Removed</h4>
+            <ul className="list">
+              {removed.map((p) => (
+                <li key={p.id} className="list-item">
+                  <Avatar person={p} size={28} />
+                  <span className="grow muted ellipsis">{p.name}</span>
+                  <button className="btn small-btn" onClick={() => restore(p)}>Restore</button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <button className="link-btn top-gap" onClick={onPickMe}>{me ? 'Change who you are' : 'Choose who you are'}</button>
       </section>
 

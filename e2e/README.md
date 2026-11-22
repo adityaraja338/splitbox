@@ -15,8 +15,8 @@ npx playwright install chromium
 Three terminals:
 
 ```bash
-# 1. Firestore emulator (needs Java)
-npx firebase emulators:start --only firestore --project demo-splitter
+# 1. Firestore + Auth emulators (needs Java 21+)
+npm run emulators
 
 # 2. Dev server pointed at the emulator
 echo "VITE_USE_EMULATOR=true" > .env.local
@@ -38,9 +38,9 @@ its own: `node e2e/balances.cjs`. Set `E2E_BASE` to use a different dev-server U
 | `new-trip-people.cjs` | People rows on the start page (Enter adds a row, remove), quick-add strip, duplicate names |
 | `balances.cjs` | Your-balance card, direct vs simplified debts, the toggle syncing to others, "I paid" |
 | `people-tab.cjs` | Cost per person and total (payments excluded), Edit mode rename |
-| `deleted.cjs` | Delete moves an entry to Recently deleted (synced to others), Restore brings it back, a removed person blocks restoring, "Added by / last edited by" line |
+| `deleted.cjs` | Delete moves an entry to Recently deleted (synced to others), Restore brings it back, a removed person blocks restoring until restored from People → Removed, re-adding a removed name brings the same person back, "Added by / last edited by" line |
 | `back-button.cjs` | Phone back closes Add/Edit expense (and other dialogs) instead of leaving the trip; no stray history entries |
 | `big-group.cjs` | 12 people: collapsible per-person rows, "Show all", the Simplify hint |
 | `offline.cjs` | Unreachable server shows "Can't reach the server" (not "Trip not found"), offline banner, recovery |
 | `responsive.cjs` | No sideways overflow on any screen or dialog at 320, 390, 768 and 1280px |
-| `autoupdate.cjs` | *Not in `npm run e2e`.* Service-worker update flow; see the comments in the file. It needs a production build served by the hosting emulator: `npx firebase emulators:start --only firestore,hosting:app --project splitter-61a04` with `.env.local` containing `VITE_USE_EMULATOR=true` and `VITE_FIREBASE_PROJECT_ID=splitter-61a04` |
+| `autoupdate.cjs` | *Not in `npm run e2e`.* Service-worker update flow; see the comments in the file. It needs a production build served by the hosting emulator: `npx firebase emulators:start --only firestore,auth,hosting:app --project splitter-61a04` with `.env.local` containing `VITE_USE_EMULATOR=true` and `VITE_FIREBASE_PROJECT_ID=splitter-61a04` |

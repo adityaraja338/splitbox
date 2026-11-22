@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { watchTrip, watchEntries } from '../api.js';
-import { computeBalances, formatMoney, suggestSettlements, pairwiseDebts, splitDeleted } from '../logic.js';
+import { computeBalances, formatMoney, suggestSettlements, pairwiseDebts, splitDeleted, tripPeople } from '../logic.js';
 import { getMe, setMe as storeMe, rememberTrip } from '../storage.js';
 import { navigate } from '../router.js';
 import { Avatar, Toast, setTripPeople } from './ui.jsx';
@@ -66,10 +66,12 @@ export default function Trip({ code }) {
   }, [trip?.name, code]);
 
   const { live: entries, deleted } = useMemo(() => splitDeleted(allEntries), [allEntries]);
-  const people = useMemo(() => trip?.people || [], [trip]);
-  const byId = useMemo(() => Object.fromEntries(people.map((p) => [p.id, p])), [people]);
-  setTripPeople(people);
-  const meValid = me && byId[me] ? me : null;
+  // allPeople includes removed people (kept for names and colours); people = active only
+  const allPeople = useMemo(() => tripPeople(trip), [trip]);
+  const people = useMemo(() => allPeople.filter((p) => !p.removed), [allPeople]);
+  const byId = useMemo(() => Object.fromEntries(allPeople.map((p) => [p.id, p])), [allPeople]);
+  setTripPeople(allPeople);
+  const meValid = me && byId[me] && !byId[me].removed ? me : null;
 
   // Ask who you are on first visit (once people exist)
   useEffect(() => {
@@ -203,6 +205,7 @@ export default function Trip({ code }) {
           <ExpenseList
             entries={entries}
             byId={byId}
+            activeCount={people.length}
             me={meValid}
             currency={cur}
             onOpen={(entry) => setEditing({ kind: entry.type === 'payment' ? 'payment' : 'expense', entry })}
@@ -233,7 +236,7 @@ export default function Trip({ code }) {
           />
         )}
         {tab === 'people' && (
-          <People trip={trip} code={code} entries={entries} me={meValid} stats={stats} flash={flash} onPickMe={() => setPicking(true)} />
+          <People trip={trip} code={code} people={people} allPeople={allPeople} entries={entries} me={meValid} stats={stats} flash={flash} onPickMe={() => setPicking(true)} />
         )}
       </main>
 
@@ -255,6 +258,7 @@ export default function Trip({ code }) {
         <ExpenseForm
           code={code}
           people={people}
+          allPeople={allPeople}
           me={meValid}
           currency={cur}
           entry={editing.entry}
@@ -266,6 +270,7 @@ export default function Trip({ code }) {
         <PaymentForm
           code={code}
           people={people}
+          allPeople={allPeople}
           me={meValid}
           currency={cur}
           entry={editing.entry}

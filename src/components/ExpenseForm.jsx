@@ -11,7 +11,7 @@ const MODES = [
   ['shares', 'Shares'],
 ];
 
-export default function ExpenseForm({ code, people, me, currency, entry, onClose, flash }) {
+export default function ExpenseForm({ code, people, allPeople, me, currency, entry, onClose, flash }) {
   const isEdit = Boolean(entry);
   const initParts = entry?.split?.parts || {};
   const [title, setTitle] = useState(entry?.title || '');
@@ -62,7 +62,7 @@ export default function ExpenseForm({ code, people, me, currency, entry, onClose
     setBusy(true);
     try {
       if (isEdit) {
-        await updateEntry(code, entry.id, { ...draft, createdAt: entry.createdAt, createdBy: entry.createdBy ?? null }, me);
+        await updateEntry(code, entry.id, { ...draft, createdAt: entry.createdAt, createdBy: entry.createdBy ?? null, createdUid: entry.createdUid ?? null }, me);
       } else {
         // Don't block the UI on the server round-trip; Firestore applies it locally right away.
         addEntry(code, { ...draft, createdBy: me || null }).catch((er) => flash(`Failed to save: ${er.message}`));
@@ -185,7 +185,7 @@ export default function ExpenseForm({ code, people, me, currency, entry, onClose
           ))}
         </ul>
         {error && <p className="error">{error}</p>}
-        {isEdit && <AuditLine entry={entry} people={people} />}
+        {isEdit && <AuditLine entry={entry} people={allPeople || people} />}
       </form>
     </Modal>
   );

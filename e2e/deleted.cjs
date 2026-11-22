@@ -1,6 +1,7 @@
 // E2E check (Playwright). See e2e/README.md for how to run it.
 // Deleting is a soft delete: the entry moves to "Recently deleted" (for everyone) and can be restored.
-// Also checks the "Added by / last edited by" line and that a removed person blocks restoring.
+// Also checks the "Added by / last edited by" line, that a removed person blocks restoring until
+// they're brought back (People → Removed → Restore), and that re-adding a removed name restores them.
 const path = require('path');
 const S = path.join(__dirname, 'screenshots') + '/';
 require('fs').mkdirSync(S, { recursive: true });
@@ -91,9 +92,51 @@ const BASE = process.env.E2E_BASE || 'http://127.0.0.1:5173';
   await a.waitForSelector('.cost-row:has-text("Bob")', { state: 'detached' });
   await a.click('[role=tab]:has-text("Expenses")');
   await a.click('text=Recently deleted (1)');
-  await a.waitForSelector('.deleted-list >> text=removed from the trip');
-  if (!(await a.isDisabled('.deleted-list >> text=Restore'))) fail('restore should be disabled');
+  await a.waitForSelector('.deleted-list >> text=Bob was removed from the trip');
+  if (!(await a.isDisabled('.deleted-list button:has-text("Restore")'))) fail('restore should be disabled');
   await a.screenshot({ path: S + 'deleted-2-blocked.png' });
+  await a.click('.modal .icon-btn[aria-label="Close"]');
+
+  // Bring Bob back from People → Removed: same person (id), so the expense can be restored
+  await a.click('[role=tab]:has-text("People")');
+  await a.waitForSelector('.removed-people >> text=Bob');
+  await a.screenshot({ path: S + 'deleted-3-removed-people.png' });
+  await a.click('.removed-people button:has-text("Restore")');
+  await a.waitForSelector('.cost-row:has-text("Bob")');
+  if (await a.$('.removed-people')) fail('Removed section should be gone');
+  await a.click('[role=tab]:has-text("Expenses")');
+  await a.click('text=Recently deleted (1)');
+  await a.click('.deleted-list button:has-text("Restore")');
+  await b.waitForSelector('.list-item:has-text("Dinner out")', { timeout: 10000 });
+  console.log('Bob restored, then the expense');
+
+  // Remove Bob again: he's in a live expense now, so it's blocked
+  await a.click('[role=tab]:has-text("People")');
+  await a.click('.summary-head >> text=Edit');
+  await a.click('button[aria-label="Remove Bob"]');
+  await a.waitForSelector('.toast:has-text("part of some expenses")');
+  await a.click('.summary-head >> text=Done');
+
+  // Add Dave, remove him, then add "dave": the same Dave comes back (no duplicate)
+  const addPerson = async (n) => {
+    await a.fill('input[placeholder="Add a person"]', n);
+    await a.click('form:has(input[placeholder="Add a person"]) >> button:has-text("Add")');
+  };
+  await addPerson('Dave');
+  await a.waitForSelector('.cost-row:has-text("Dave")');
+  await a.click('.summary-head >> text=Edit');
+  await a.click('button[aria-label="Remove Dave"]');
+  await a.waitForSelector('.removed-people >> text=Dave');
+  // Bob's device asked "Who are you?" while he was removed; he's back, so he can pick himself again
+  if (await b.$('.modal:has-text("Who are you")')) await b.click('.pick:has-text("Bob")');
+  await b.click('[role=tab]:has-text("People")');
+  await b.waitForSelector('.removed-people >> text=Dave'); // synced
+  await a.click('.summary-head >> text=Done');
+  await addPerson('dave');
+  await a.waitForSelector('.removed-people', { state: 'detached' });
+  const daves = await a.$$eval('.cost-row', (els) => els.filter((e) => /dave/i.test(e.textContent)).length);
+  if (daves !== 1) fail(`re-adding Dave should bring him back, not duplicate (found ${daves})`);
+  console.log('re-adding a removed name restored the same person');
 
   // 320px: no sideways overflow in the dialog
   await a.setViewportSize({ width: 320, height: 700 });

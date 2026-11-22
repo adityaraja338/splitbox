@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseAmount, formatMoney, distribute, expenseShares, validateExpense,
   computeBalances, suggestSettlements, normalizeCode, generateCode,
-  splitDeleted, canRestore, isPersonUsed,
+  splitDeleted, canRestore, isPersonUsed, tripPeople,
 } from './logic.js';
 
 describe('amounts', () => {
@@ -105,5 +105,23 @@ describe('deleted entries', () => {
     const { live } = splitDeleted([exp('x', { deletedAt: ts(1) })]);
     expect(computeBalances(people, live).balances).toEqual({ a: 0, b: 0 });
     expect(isPersonUsed('b', live)).toBe(false);
+  });
+});
+
+describe('tripPeople', () => {
+  it('overlays renames and removals on the append-only list, keeping order', () => {
+    const trip = {
+      people: [{ id: 'a', name: 'Asha' }, { id: 'b', name: 'Bob' }, { id: 'c', name: 'Cy' }],
+      personMeta: { b: { name: 'Bobby' }, c: { removed: true } },
+    };
+    expect(tripPeople(trip)).toEqual([
+      { id: 'a', name: 'Asha', removed: false },
+      { id: 'b', name: 'Bobby', removed: false },
+      { id: 'c', name: 'Cy', removed: true },
+    ]);
+  });
+  it('handles older trips and missing data', () => {
+    expect(tripPeople({ people: [{ id: 'a', name: 'A' }] })).toEqual([{ id: 'a', name: 'A', removed: false }]);
+    expect(tripPeople(undefined)).toEqual([]);
   });
 });

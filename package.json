@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "emulators": "firebase emulators:start --only firestore --project demo-splitter",
+    "emulators": "firebase emulators:start --only firestore,auth --project demo-splitter",
     "deploy": "firebase deploy --only hosting,firestore",
     "e2e": "node e2e/run.cjs",
     "screenshots": "node scripts/screenshots.cjs && node scripts/linkedin-cover.cjs"

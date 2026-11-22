@@ -1,6 +1,10 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import {
+  initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, connectAuthEmulator,
+  signInAnonymously,
+} from 'firebase/auth';
+import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   connectFirestoreEmulator,
 } from 'firebase/firestore';
@@ -52,3 +56,32 @@ if (useEmulator) {
 }
 
 export const db = firestore;
+
+// Silent anonymous sign-in: no login screen, but every device gets a stable uid that the rules
+// require for writes and stamp onto what it writes (createdUid/updatedUid).
+// No popup/redirect resolver, so the auth iframe from firebaseapp.com is never loaded.
+const auth = initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence] });
+if (useEmulator) {
+  connectAuthEmulator(auth, `http://127.0.0.1:${Number(env.VITE_AUTH_EMULATOR_PORT || 9099)}`, { disableWarnings: true });
+}
+
+let signingIn = null;
+/**
+ * Resolves with the signed-in user, signing in anonymously the first time. A device that has
+ * signed in before resolves straight from local storage, even offline. Retries after a failure.
+ */
+export async function ensureUser() {
+  await auth.authStateReady();
+  if (auth.currentUser) return auth.currentUser;
+  signingIn ??= signInAnonymously(auth)
+    .then((cred) => cred.user)
+    .finally(() => { signingIn = null; });
+  return signingIn;
+}
+
+/** The current device's uid (call after ensureUser). */
+export const currentUid = () => auth.currentUser?.uid ?? null;
+
+// Start signing in right away so the first write doesn't wait. Offline is fine: writes retry it.
+ensureUser().catch(() => {});
+if (typeof window !== 'undefined') window.addEventListener('online', () => ensureUser().catch(() => {}));
