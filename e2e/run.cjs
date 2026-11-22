@@ -9,6 +9,7 @@ const SUITE = [
   'balances.cjs', // your balance card, simplify toggle, I paid / Got it
   'people-tab.cjs', // cost per person + total, edit mode
   'deleted.cjs', // soft delete, Recently deleted + restore, audit line
+  'quick-edit.cjs', // edits right after adding / while offline still sync
   'back-button.cjs', // phone back closes add/edit forms instead of leaving the trip
   'big-group.cjs', // 12-person trip: per-person list, show all, simplify hint
   'offline.cjs', // "Can't reach the server" state, offline banner, recovery

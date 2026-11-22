@@ -117,18 +117,20 @@ export async function addEntry(code, entry) {
   });
 }
 
-/** `by` = person id of whoever is making the edit (or null). createdAt/createdBy must be passed through unchanged. */
+/**
+ * Edit an entry. `by` = person id of whoever is making the edit (or null).
+ * Only the editable fields are sent (mergeFields), each replaced whole, so switching split modes
+ * leaves no stale parts behind. createdAt/createdBy/createdUid are never sent: the server keeps
+ * its own values, which the rules require. (Sending them back from the snapshot broke edits made
+ * right after adding, or offline, while createdAt was still a local estimate.)
+ */
 export async function updateEntry(code, id, entry, by) {
   await ensureUser();
-  // setDoc (not merge) so switching split modes doesn't leave stale parts behind
-  const { id: _omit, deletedAt: _d, deletedBy: _db, ...rest } = entry;
-  return setDoc(doc(entriesRef(code), id), {
-    ...rest,
-    createdUid: entry.createdUid ?? null, // pass the original through; older entries have none
-    updatedAt: serverTimestamp(),
-    updatedBy: by ?? null,
-    updatedUid: currentUid(),
-  });
+  const {
+    id: _id, createdAt: _ca, createdBy: _cb, createdUid: _cu, deletedAt: _d, deletedBy: _db, ...rest
+  } = entry;
+  const data = { ...rest, updatedAt: serverTimestamp(), updatedBy: by ?? null, updatedUid: currentUid() };
+  return setDoc(doc(entriesRef(code), id), data, { mergeFields: Object.keys(data) });
 }
 
 /** Soft delete: the rules forbid real deletes, so anything removed can be restored. */

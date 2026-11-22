@@ -77,7 +77,11 @@ trips/{CODE}/entries/{id}
 - **Writes need a signed-in device.** The app signs in anonymously and silently (no login screen).
   The rules require `createdUid`/`updatedUid` == `request.auth.uid`, so they're trustworthy
   per-device stamps. `createdBy`/`updatedBy`/`deletedBy` are the person a device *claims* to be,
-  so they're a courtesy trail. Edits must pass the original `createdUid` through (the forms do).
+  so they're a courtesy trail.
+- **Edits never send `createdAt`/`createdBy`/`createdUid`.** `updateEntry` uses `setDoc` with
+  `mergeFields` (only the editable fields, each replaced whole), so the server keeps its own
+  values. Sending the snapshot's `createdAt` back broke edits made right after adding or while
+  offline (it was still a local estimate). `e2e/quick-edit.cjs` guards this.
   Reads stay open to anyone with the code.
 - `createdAt`, `createdBy`, `createdUid` and `type` can't change after creation.
 

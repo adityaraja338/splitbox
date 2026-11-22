@@ -62,7 +62,8 @@ export default function ExpenseForm({ code, people, allPeople, me, currency, ent
     setBusy(true);
     try {
       if (isEdit) {
-        await updateEntry(code, entry.id, { ...draft, createdAt: entry.createdAt, createdBy: entry.createdBy ?? null, createdUid: entry.createdUid ?? null }, me);
+        // Like adding: don't wait for the server (offline edits sync later)
+        updateEntry(code, entry.id, { ...draft }, me).catch((er) => flash(`Failed to save: ${er.message}`));
       } else {
         // Don't block the UI on the server round-trip; Firestore applies it locally right away.
         addEntry(code, { ...draft, createdBy: me || null }).catch((er) => flash(`Failed to save: ${er.message}`));

@@ -25,7 +25,7 @@ export default function PaymentForm({ code, people, allPeople, me, currency, ent
     setBusy(true);
     const data = { type: 'payment', from, to, amount, date, note: note.trim() };
     try {
-      if (isEdit) await updateEntry(code, entry.id, { ...data, createdAt: entry.createdAt, createdBy: entry.createdBy ?? null, createdUid: entry.createdUid ?? null }, me);
+      if (isEdit) updateEntry(code, entry.id, { ...data }, me).catch((er) => flash(`Failed to save: ${er.message}`));
       else addEntry(code, { ...data, createdBy: me || null }).catch((er) => flash(`Failed to save: ${er.message}`));
       flash(isEdit ? 'Payment updated' : 'Payment recorded');
       onClose();

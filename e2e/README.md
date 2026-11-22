@@ -39,6 +39,7 @@ its own: `node e2e/balances.cjs`. Set `E2E_BASE` to use a different dev-server U
 | `balances.cjs` | Your-balance card, direct vs simplified debts, the toggle syncing to others, "I paid" |
 | `people-tab.cjs` | Cost per person and total (payments excluded), Edit mode rename |
 | `deleted.cjs` | Delete moves an entry to Recently deleted (synced to others), Restore brings it back, a removed person blocks restoring until restored from People → Removed, re-adding a removed name brings the same person back, "Added by / last edited by" line |
+| `quick-edit.cjs` | Editing an expense right after adding it, and adding + editing while offline, both sync once the server is reachable |
 | `back-button.cjs` | Phone back closes Add/Edit expense (and other dialogs) instead of leaving the trip; no stray history entries |
 | `big-group.cjs` | 12 people: collapsible per-person rows, "Show all", the Simplify hint |
 | `offline.cjs` | Unreachable server shows "Can't reach the server" (not "Trip not found"), offline banner, recovery |
