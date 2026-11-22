@@ -151,15 +151,16 @@ Proves Firestore requests come from the real site, so a script can't burn the fr
   a **1-day token TTL**. Keep it long: billing is off, so reCAPTCHA runs on the free tier of
   10,000 checks a month (about one per device per day at this TTL) and returns errors past that
   instead of charging. If App Check were enforced then, the app would stop loading data.
-- **Enforcement** (App Check → APIs → Cloud Firestore): off when set up on 2026-11-22, to be
-  switched on once the metrics show nearly all requests as Verified. **Unenforce** is the quick
-  rollback if real users get rejected.
+- **Enforcement** (App Check → APIs → Cloud Firestore): **enforced since 2026-11-23**. Requests
+  without a valid token get 403. **Unenforce** there is the quick rollback if real users get
+  rejected (e.g. browsers that block reCAPTCHA show up as "unknown origin" in the metrics).
+  Authentication is still on Monitoring (its enforcement is a Preview feature).
 - **Emulator:** App Check is skipped when `VITE_USE_EMULATOR=true`, so E2E tests don't touch it. A
   dev server on `localhost` without `.env.local` uses the real key and gets real tokens.
 - **Check it on the live site:** in the browser, the `exchangeRecaptchaEnterpriseToken` request
   should return 200 with `"ttl": "86400s"`. A request with no token, such as
   `curl "https://firestore.googleapis.com/v1/projects/splitter-61a04/databases/(default)/documents/trips/ZZZZZZZZ?key=<api key>" -H "Referer: https://splitbox.web.app/"`,
-  returns 404 while unenforced and a 401/403 App Check error once enforced.
+  returns 403 now that it's enforced (it returned 404 before).
 - reCAPTCHA logs `requestStorageAccess: Permission denied` in headless Chrome. It comes from
   Google's frame and is harmless.
 - **New domain:** add it to the reCAPTCHA key's domain list, the API key's referrers and (if it
