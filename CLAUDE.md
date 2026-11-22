@@ -108,9 +108,11 @@ trips/{CODE}/entries/{id}
   the key; **the rules are the real protection** (get by exact code only, no listing, schema
   validation, no hard deletes). If you add a custom domain, add it to the key's referrers (Google
   Cloud Console → APIs & Services → Credentials) and to the reCAPTCHA key's domains.
-- **App Check** (reCAPTCHA v3) is wired in `src/firebase.js` and switches on when
+- **App Check** (reCAPTCHA Enterprise, now "Fraud Defense"; the v3 provider no longer accepts new
+  sign-ups) is wired in `src/firebase.js` and switches on when
   `RECAPTCHA_SITE_KEY` (or `VITE_RECAPTCHA_SITE_KEY`) is set. It's skipped against the emulator.
-  With enforcement on in the Firebase console, requests without a token are rejected.
+  With enforcement on in the Firebase console, requests without a token are rejected. No billing =
+  free tier of 10k checks/month (errors past that, never a charge), so the token TTL is kept long.
 - `firebase.json` sends a strict CSP plus `Referrer-Policy: strict-origin` (not `no-referrer`:
   the API key's referrer restriction needs the origin), `X-Frame-Options: DENY` and `nosniff`.
   **Any new third-party host (script, API, font, image) must be added to the CSP**, or the browser
