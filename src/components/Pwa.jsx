@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useRegisterSW } from 'virtual:pwa-register/react';
 
 const isStandalone = () =>
   window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
@@ -16,24 +15,49 @@ const setDismissed = () => {
   try { localStorage.setItem(DISMISS_KEY, '1'); } catch { /* ignore */ }
 };
 
-/** Banner shown when a new version has been deployed. */
-export function UpdatePrompt() {
-  const {
-    needRefresh: [needRefresh, setNeedRefresh],
-    updateServiceWorker,
-  } = useRegisterSW({
-    onRegisteredSW(_url, reg) {
-      // Check for a new version every hour while the app is open
-      if (reg) setInterval(() => reg.update().catch(() => {}), 60 * 60 * 1000);
-    },
-  });
+const CHECK_EVERY_MS = 10 * 60 * 1000; // look for a newer deploy while the app stays open
 
-  if (!needRefresh) return null;
+/**
+ * Launching or refreshing always loads the latest version (the service worker fetches the page
+ * network-first), so no button is needed then. Only when a new version is deployed WHILE the app
+ * is open do we show an "Update" button.
+ */
+export function UpdateBanner() {
+  const [available, setAvailable] = useState(false);
+
+  useEffect(() => {
+    if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return undefined;
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+
+    const check = async () => {
+      try {
+        const res = await fetch('/version.json', { cache: 'no-store' });
+        if (!res.ok) return;
+        const { build } = await res.json();
+        if (build && build !== __BUILD_ID__) setAvailable(true);
+      } catch { /* offline: try again later */ }
+    };
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      navigator.serviceWorker.getRegistration().then((r) => r?.update()).catch(() => {});
+      check();
+    };
+
+    document.addEventListener('visibilitychange', onVisible);
+    const poll = setInterval(check, CHECK_EVERY_MS);
+    check(); // also right after launch, in case the page came from the offline copy
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(poll);
+    };
+  }, []);
+
+  if (!available) return null;
   return (
     <div className="update-banner" role="status">
       <span>A new version of Splitbox is available.</span>
-      <button className="btn small-btn primary" onClick={() => updateServiceWorker(true)}>Update</button>
-      <button className="icon-btn" aria-label="Later" onClick={() => setNeedRefresh(false)}>✕</button>
+      <button className="btn small-btn primary" onClick={() => location.reload()}>Update</button>
+      <button className="icon-btn" aria-label="Later" onClick={() => setAvailable(false)}>✕</button>
     </div>
   );
 }

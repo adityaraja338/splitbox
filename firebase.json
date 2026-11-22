@@ -16,7 +16,7 @@
           "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
         },
         {
-          "source": "/@(sw.js|workbox-*.js|registerSW.js|index.html|manifest.webmanifest)",
+          "source": "/@(sw.js|workbox-*.js|registerSW.js|index.html|manifest.webmanifest|version.json)",
           "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
         }
       ]
