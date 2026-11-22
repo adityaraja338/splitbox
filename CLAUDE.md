@@ -1,0 +1,108 @@
+# Splitbox: notes for Claude Code
+
+Trip expense splitter (a free Kittysplit alternative). Frontend-only React app; data lives in Cloud
+Firestore; hosted on Firebase Hosting. No accounts: the trip code is the key.
+
+- Live: https://splitbox.web.app (the old https://splitter-61a04.web.app redirects there, keeping the path)
+- Firebase project: `splitter-61a04` (Spark/free plan, billing disabled, so it cannot generate a bill)
+- Default and only branch: `main`
+
+## Commands
+
+```bash
+npm run dev          # Vite dev server
+npm test             # unit tests (vitest): src/logic.test.js
+npm run emulators    # local Firestore emulator (Java), project demo-splitter
+npm run e2e          # Playwright browser checks (need emulator + dev server; see e2e/README.md)
+npm run build        # production build to dist/
+npm run deploy       # firebase deploy hosting + firestore rules (predeploy rebuilds and verifies)
+npm run screenshots  # regenerate linkedin/*.png and the cover image (needs emulator + dev server)
+```
+
+For local work against the emulator, put `VITE_USE_EMULATOR=true` in `.env.local` (git-ignored).
+**Delete it before deploying.** `scripts/verify-dist.mjs` runs as a predeploy step and blocks any
+build that points at the emulator. This exact mistake once took the live app down.
+
+## Layout
+
+| Path | Purpose |
+| --- | --- |
+| `src/logic.js` | Pure money logic: `parseAmount`, `distribute` (largest remainder), `expenseShares`, `computeBalances` (→ balances/paid/spent), `suggestSettlements` (simplified), `pairwiseDebts` (direct). Unit-tested. |
+| `src/api.js` | All Firestore access. People changes go through a transaction (`mutatePeople`). |
+| `src/firebase.js` | SDK init. Persistent offline cache plus **forced long-polling** (flaky mobile networks break streaming). Config defaults are inlined; `VITE_FIREBASE_*` env vars override them. |
+| `src/sw.js` | Service worker (vite-plugin-pwa `injectManifest`). See "Updates" below. |
+| `src/router.js` | Tiny history router: `/` and `/t/:CODE`. |
+| `src/storage.js` | localStorage: who you are per trip (`me:CODE`), recent trips, install hint dismissed. |
+| `src/settle.js` | `markPaid()`: confirm, then record a payment entry. |
+| `src/components/Trip.jsx` | Trip page: loads trip + entries, computes stats/settlements, tabs. |
+| `src/components/Balances.jsx` | Your balance (`MySummary`), everyone's debts (simplify toggle, first 5 + Show all, hint), collapsible per-person rows. |
+| `src/components/People.jsx` | Cost per person (each person's share, `stats.spent`) + total; rename/remove behind Edit; trip settings. |
+| `src/components/Pwa.jsx` | `UpdateBanner` (only when a deploy lands while the app is open) and `InstallCard` (Android prompt / iOS steps). |
+| `src/components/ui.jsx` | `Modal`, `Avatar` (colour by position in trip via `setTripPeople`), `CURRENCIES`. |
+| `firestore.rules` | Security rules with strict schema checks. |
+| `e2e/` | Playwright scripts + runner. `scripts/` holds the deploy guard, screenshot, cover and icon generators. |
+| `linkedin/` | Post draft and screenshots (demo data, trip code masked). README images come from here. |
+
+## Data model (Firestore)
+
+```
+trips/{CODE}                      CODE = 8 chars from 23456789ABCDEFGHJKLMNPQRSTUVWXYZ
+  name, currency (symbol string), createdAt
+  people: [{ id, name }]          id = random hex; order = avatar colour
+  simplify?: bool                 absent => ON (only an explicit false turns it off)
+
+trips/{CODE}/entries/{id}
+  expense: { type:'expense', title, amount, paidBy, date:'YYYY-MM-DD',
+             split:{ mode:'equal'|'exact'|'shares', parts:{ personId: n } },
+             createdAt, updatedAt, createdBy }
+           equal: parts = {id: 1}; exact: parts = {id: minor units}; shares: parts = {id: weight}
+  payment: { type:'payment', from, to, amount, date, note, createdAt, updatedAt, createdBy }
+```
+
+- **All money is integer minor units (paise/cents).** Never use floats for amounts.
+- `stats.spent[id]` = that person's share of expenses (the People tab "cost per person");
+  `stats.paid[id]` = what they paid for the group; `stats.balances[id]` = paid − share ± payments.
+  Payments never count as spending.
+- The rules use `keys().hasOnly([...])`. **Any new field must be added to `firestore.rules`**, or
+  writes will be rejected, then deployed with `npx firebase deploy --only firestore:rules`. New rules
+  take about a minute to propagate.
+- A person can't be removed while any entry references them (`isPersonUsed`).
+
+## Hosting, updates and PWA
+
+- `firebase.json` has two hosting targets (see `.firebaserc`): `app` → site `splitbox`, and
+  `legacy` → site `splitter-61a04`, which 302-redirects everything to splitbox (regex rule keeps
+  the path). Both deploy together.
+- **Updates:** the HTML page is NOT precached. The service worker fetches it network-first (5s
+  timeout, then the cached copy), so a refresh or app launch always gets the latest deploy when
+  online. Hashed JS/CSS are precached for offline use. A new worker activates immediately.
+  `version.json` (emitted at build) plus `__BUILD_ID__` let the open app detect a newer deploy and
+  show the **Update** banner; that's the only time a button appears. `window.__SPLITBOX_BUILD__`
+  shows the running build.
+- `sw.js`, `index.html`, `version.json` and `manifest.webmanifest` are served with
+  `Cache-Control: no-cache` (firebase.json headers). Keep it that way.
+
+## Behaviour worth knowing
+
+- A cache-only snapshot of a missing trip means "can't reach the server", not "trip not found"
+  (`watchTrip` passes `fromCache`). Don't regress this: it once showed "Trip not found" on a bad
+  mobile network.
+- Simplify debts is on by default. Off means direct pairwise debts.
+- Amount splits use largest-remainder rounding so parts always sum exactly to the total.
+
+## Security
+
+- The Firebase web API key in `src/firebase.js` is public by design. In Google Cloud it's restricted
+  to Firestore only and to the splitbox/splitter-61a04/localhost referrers. Firestore itself ignores
+  the key; **the rules are the real protection** (get by exact code only, no listing, schema
+  validation). If you add a custom domain, add it to the key's referrers (Google Cloud Console →
+  APIs & Services → Credentials).
+- Never commit `.env`, `.env.local`, service-account keys or debug logs.
+
+## Working conventions
+
+- Test against the emulator, never production data. Check new UI at 320px and in dark mode
+  (`node e2e/responsive.cjs` catches overflow).
+- Run `npm test` and `npm run e2e` before deploying; deploy with `npm run deploy` after
+  `npx firebase login` (the account that owns `splitter-61a04`).
+- Commit straight to `main`.

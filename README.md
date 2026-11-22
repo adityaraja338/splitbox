@@ -20,13 +20,18 @@ Built on a trip to Zero Point, Sikkim, from a phone, with [Claude Code](https://
 - Add expenses: who paid, who was involved, and split **equally**, by **exact amounts** or by **shares**.
 - **Who pays whom**: your balance, everyone's debts and a per-person breakdown. Tap **Mark paid** when someone settles up.
 - **Simplify debts** (on by default): the fewest payments to settle everyone, or switch it off to repay exactly who paid for you.
+- **Cost per person**: what the trip cost each person, adding up to the trip total.
 - Real-time sync between phones, works offline, installable as an app (PWA), dark mode.
+- Always up to date: opening or refreshing loads the latest version. An **Update** button only
+  appears if a new version is released while the app is already open.
 
 Money is stored in whole paise/cents and split with largest-remainder rounding, so splits always add up exactly.
 
 ## Tech
 
-React + Vite, Cloud Firestore, Firebase Hosting. Frontend only: there is no backend server.
+React + Vite, Cloud Firestore, Firebase Hosting, a Workbox service worker (`src/sw.js`).
+Frontend only: there is no backend server. Developer notes (architecture, data model, gotchas)
+are in [`CLAUDE.md`](CLAUDE.md).
 
 | Path | What |
 | --- | --- |
@@ -39,17 +44,33 @@ React + Vite, Cloud Firestore, Firebase Hosting. Frontend only: there is no back
 
 ```bash
 npm install
-npx firebase emulators:start --only firestore --project demo-splitter   # terminal 1
-echo "VITE_USE_EMULATOR=true" > .env.local && npm run dev               # terminal 2
-npm test                                                                # unit tests
+npm run emulators                                   # terminal 1: local Firestore (needs Java)
+echo "VITE_USE_EMULATOR=true" > .env.local          # point the app at the emulator
+npm run dev                                         # terminal 2
 ```
 
-## Host your own copy
+## Tests
+
+```bash
+npm test        # unit tests for the money logic
+npm run e2e     # browser checks against the emulator (setup in e2e/README.md)
+```
+
+## Deploy
+
+```bash
+rm -f .env.local          # never ship an emulator build (the deploy also checks this)
+npx firebase login        # the Google account that owns the Firebase project
+npm run deploy            # rebuilds, verifies, deploys hosting and Firestore rules
+```
+
+### Host your own copy
 
 1. Create a Firebase project, enable **Firestore**, and add a **Web app**.
 2. Put your web config in `.env` (see `.env.example`). It overrides the defaults in `src/firebase.js`.
-3. Set your project id in `.firebaserc` and your site name in its `targets` section.
-4. `npx firebase login && npm run deploy`. This builds, checks the build isn't pointing at the emulator, and deploys hosting and rules.
+3. In `.firebaserc`, set your project id and your Hosting site names under `targets` (or remove the
+   `legacy` redirect target from `firebase.json`).
+4. `npx firebase login && npm run deploy`.
 
 ## Security model
 
