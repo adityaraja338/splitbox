@@ -322,10 +322,13 @@ input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--primary)
   .page.narrow { max-width: 480px; }
   .balances-grid, .people-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 18px; align-items: start; }
   .balances-grid > .col, .people-grid > .card { min-width: 0; }
-  .expense-list, .people-strip { max-width: 760px; margin-left: auto; margin-right: auto; }
   .people-strip { margin-bottom: 14px; }
   .fab { left: auto; right: max(24px, calc((100vw - 1040px) / 2 + 24px)); transform: none; }
   .toast { bottom: 40px; }
+}
+/* Wide screens: park the Add button in the margin beside the content so it never covers amounts */
+@media (min-width: 1480px) {
+  .fab { right: calc((100vw - 1040px) / 2 - 200px); }
 }
 /* Hint that the people row scrolls sideways */
 .strip { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); padding-right: 24px; }
