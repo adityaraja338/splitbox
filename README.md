@@ -5,7 +5,8 @@
 👉 **Use it:** https://splitbox.web.app
 
 Built on a trip to Zero Point, Sikkim, from a phone, with [Claude Code](https://claude.com/claude-code) running in the cloud, after the
-"who pays whom" feature of the splitter we used went paid.
+splitter we used wanted a paid upgrade to show "who pays whom" for a group of 12 (its free version
+settles up groups of up to 9).
 
 <p align="center">
   <img src="docs/screenshots/1-expenses.png" width="240" alt="Trip expenses" />
