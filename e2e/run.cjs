@@ -8,6 +8,7 @@ const SUITE = [
   'new-trip-people.cjs', // people rows on the start page, quick-add strip
   'balances.cjs', // your balance card, simplify toggle, I paid / Got it
   'people-tab.cjs', // cost per person + total, edit mode
+  'back-button.cjs', // phone back closes add/edit forms instead of leaving the trip
   'big-group.cjs', // 12-person trip: per-person list, show all, simplify hint
   'offline.cjs', // "Can't reach the server" state, offline banner, recovery
   'responsive.cjs', // no horizontal overflow at 320/390/768/1280 on every screen

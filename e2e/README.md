@@ -38,6 +38,7 @@ its own: `node e2e/balances.cjs`. Set `E2E_BASE` to use a different dev-server U
 | `new-trip-people.cjs` | People rows on the start page (Enter adds a row, remove), quick-add strip, duplicate names |
 | `balances.cjs` | Your-balance card, direct vs simplified debts, the toggle syncing to others, "I paid" |
 | `people-tab.cjs` | Cost per person and total (payments excluded), Edit mode rename |
+| `back-button.cjs` | Phone back closes Add/Edit expense (and other dialogs) instead of leaving the trip; no stray history entries |
 | `big-group.cjs` | 12 people: collapsible per-person rows, "Show all", the Simplify hint |
 | `offline.cjs` | Unreachable server shows "Can't reach the server" (not "Trip not found"), offline banner, recovery |
 | `responsive.cjs` | No sideways overflow on any screen or dialog at 320, 390, 768 and 1280px |

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export const CURRENCIES = [
   ['₹', 'INR ₹'], ['$', 'USD $'], ['€', 'EUR €'], ['£', 'GBP £'], ['¥', 'JPY ¥'],
@@ -6,7 +6,47 @@ export const CURRENCIES = [
   ['Rp ', 'IDR Rp'], ['RM ', 'MYR RM'], ['CHF ', 'CHF'], ['', 'None'],
 ];
 
+// Phone back button / back gesture should close an open modal, not leave the trip.
+// While any modal is open we keep one extra history entry (same URL, state {modal:true}).
+// Back pops it (popstate -> close); closing any other way pops it ourselves.
+const openModals = new Set(); // refs to each open modal's onClose
+let selfPop = false; // our own history.back() is in flight (it's async)
+if (typeof window !== 'undefined') {
+  // A reload while a modal was open leaves a stale marker entry; clear it so the next close
+  // doesn't step back off the page.
+  if (history.state?.modal) history.replaceState(null, '', location.href);
+  window.addEventListener('popstate', () => {
+    if (selfPop) {
+      selfPop = false;
+      // A modal opened while our back was in flight: give it its entry now.
+      if (openModals.size && !history.state?.modal) history.pushState({ modal: true }, '', location.href);
+      return;
+    }
+    if (!history.state?.modal) [...openModals].forEach((r) => r.current());
+  });
+}
+
+function useBackToClose(onClose) {
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    openModals.add(closeRef);
+    if (!history.state?.modal && !selfPop) history.pushState({ modal: true }, '', location.href);
+    return () => {
+      openModals.delete(closeRef);
+      // Deferred so a StrictMode unmount/remount (or a modal swapped for another) keeps the entry.
+      setTimeout(() => {
+        if (!openModals.size && history.state?.modal && !selfPop) {
+          selfPop = true;
+          history.back();
+        }
+      }, 0);
+    };
+  }, []);
+}
+
 export function Modal({ title, onClose, children, footer }) {
+  useBackToClose(onClose);
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
     document.addEventListener('keydown', onKey);
