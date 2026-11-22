@@ -12,7 +12,7 @@ Firestore; hosted on Firebase Hosting. No accounts: the trip code is the key.
 ```bash
 npm run dev          # Vite dev server
 npm test             # unit tests (vitest): src/logic.test.js
-npm run emulators    # local Firestore emulator (Java), project demo-splitter
+npm run emulators    # local Firestore emulator (needs Java 21+), project demo-splitter
 npm run e2e          # Playwright browser checks (need emulator + dev server; see e2e/README.md)
 npm run build        # production build to dist/
 npm run deploy       # firebase deploy hosting + firestore rules (predeploy rebuilds and verifies)
@@ -104,20 +104,47 @@ trips/{CODE}/entries/{id}
 ## Security
 
 - The Firebase web API key in `src/firebase.js` is public by design. In Google Cloud it's restricted
-  to Firestore only and to the splitbox/splitter-61a04/localhost referrers. Firestore itself ignores
-  the key; **the rules are the real protection** (get by exact code only, no listing, schema
-  validation, no hard deletes). If you add a custom domain, add it to the key's referrers (Google
-  Cloud Console → APIs & Services → Credentials) and to the reCAPTCHA key's domains.
-- **App Check** (reCAPTCHA Enterprise, now "Fraud Defense"; the v3 provider no longer accepts new
-  sign-ups) is wired in `src/firebase.js` and switches on when
-  `RECAPTCHA_SITE_KEY` (or `VITE_RECAPTCHA_SITE_KEY`) is set. It's skipped against the emulator.
-  With enforcement on in the Firebase console, requests without a token are rejected. No billing =
-  free tier of 10k checks/month (errors past that, never a charge), so the token TTL is kept long.
+  to the Cloud Firestore and Firebase App Check APIs, and to the splitbox/splitter-61a04/localhost
+  referrers. Firestore itself ignores the key; **the rules are the real protection** (get by exact
+  code only, no listing, schema validation, no hard deletes). If you add a custom domain, add it to
+  the key's referrers (Google Cloud Console → APIs & Services → Credentials) and to the reCAPTCHA
+  key's domains.
+- **App Check** is on: see "App Check" below.
 - `firebase.json` sends a strict CSP plus `Referrer-Policy: strict-origin` (not `no-referrer`:
   the API key's referrer restriction needs the origin), `X-Frame-Options: DENY` and `nosniff`.
   **Any new third-party host (script, API, font, image) must be added to the CSP**, or the browser
   blocks it. The dev server doesn't send these headers, so check new hosts with a production build.
 - Never commit `.env`, `.env.local`, service-account keys or debug logs.
+
+## App Check
+
+Proves Firestore requests come from the real site, so a script can't burn the free daily quota.
+
+- **Provider:** reCAPTCHA Enterprise (Google now calls it "Fraud Defense") via
+  `ReCaptchaEnterpriseProvider` in `src/firebase.js`. The classic reCAPTCHA v3 provider no longer
+  accepts new App Check registrations, so don't switch back to it.
+- **Key:** `Splitbox`, ID `6LcjSC0uAAAAAG1h5NpWSu2LTV20BXykI_ZrQ0MU` (public, inlined as
+  `RECAPTCHA_SITE_KEY`). Type Website · Score, domains `splitbox.web.app` and `localhost`, domain
+  verification on. It was made in the classic admin console and shows up in Google Cloud →
+  Security → reCAPTCHA; manage it there. Its "secret key" isn't used by App Check.
+  `VITE_RECAPTCHA_SITE_KEY` overrides it; an empty value turns App Check off.
+- **Firebase console → App Check → Apps:** the web app is registered with reCAPTCHA Enterprise and
+  a **1-day token TTL**. Keep it long: billing is off, so reCAPTCHA runs on the free tier of
+  10,000 checks a month (about one per device per day at this TTL) and returns errors past that
+  instead of charging. If App Check were enforced then, the app would stop loading data.
+- **Enforcement** (App Check → APIs → Cloud Firestore): off when set up on 2026-11-22, to be
+  switched on once the metrics show nearly all requests as Verified. **Unenforce** is the quick
+  rollback if real users get rejected.
+- **Emulator:** App Check is skipped when `VITE_USE_EMULATOR=true`, so E2E tests don't touch it. A
+  dev server on `localhost` without `.env.local` uses the real key and gets real tokens.
+- **Check it on the live site:** in the browser, the `exchangeRecaptchaEnterpriseToken` request
+  should return 200 with `"ttl": "86400s"`. A request with no token, such as
+  `curl "https://firestore.googleapis.com/v1/projects/splitter-61a04/databases/(default)/documents/trips/ZZZZZZZZ?key=<api key>" -H "Referer: https://splitbox.web.app/"`,
+  returns 404 while unenforced and a 401/403 App Check error once enforced.
+- reCAPTCHA logs `requestStorageAccess: Permission denied` in headless Chrome. It comes from
+  Google's frame and is harmless.
+- **New domain:** add it to the reCAPTCHA key's domain list, the API key's referrers and (if it
+  loads anything new) the CSP.
 
 ## Working conventions
 
