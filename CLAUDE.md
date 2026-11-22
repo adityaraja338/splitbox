@@ -16,7 +16,7 @@ npm run emulators    # local Firestore emulator (Java), project demo-splitter
 npm run e2e          # Playwright browser checks (need emulator + dev server; see e2e/README.md)
 npm run build        # production build to dist/
 npm run deploy       # firebase deploy hosting + firestore rules (predeploy rebuilds and verifies)
-npm run screenshots  # regenerate linkedin/*.png and the cover image (needs emulator + dev server)
+npm run screenshots  # regenerate docs/screenshots/*.png and linkedin/cover.png (needs emulator + dev server)
 ```
 
 For local work against the emulator, put `VITE_USE_EMULATOR=true` in `.env.local` (git-ignored).
@@ -41,7 +41,8 @@ build that points at the emulator. This exact mistake once took the live app dow
 | `src/components/ui.jsx` | `Modal`, `Avatar` (colour by position in trip via `setTripPeople`), `CURRENCIES`. |
 | `firestore.rules` | Security rules with strict schema checks. |
 | `e2e/` | Playwright scripts + runner. `scripts/` holds the deploy guard, screenshot, cover and icon generators. |
-| `linkedin/` | Post draft and screenshots (demo data, trip code masked). README images come from here. |
+| `docs/screenshots/` | App screenshots (demo data, trip code masked) used by the README. |
+| `linkedin/` | Private LinkedIn post draft and cover image. **Git-ignored; never commit it.** |
 
 ## Data model (Firestore)
 

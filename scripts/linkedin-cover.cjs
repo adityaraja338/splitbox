@@ -2,8 +2,9 @@ const path = require('path');
 // Composes the screenshots into one LinkedIn image (1200x1500, 4:5).
 const { chromium } = require('playwright');
 const fs = require('fs');
-const DIR = path.resolve(__dirname, '../linkedin') + '/';
-const img = (f) => 'data:image/png;base64,' + fs.readFileSync(DIR + f).toString('base64');
+const SHOTS = path.resolve(__dirname, '../docs/screenshots') + '/';
+const DIR = path.resolve(__dirname, '../linkedin') + '/'; // private, git-ignored
+const img = (f) => 'data:image/png;base64,' + fs.readFileSync(SHOTS + f).toString('base64');
 
 const html = `<!doctype html><html><head><style>
   * { box-sizing: border-box; margin: 0; }
@@ -41,6 +42,7 @@ const html = `<!doctype html><html><head><style>
   const p = await br.newPage({ viewport: { width: 1200, height: 1500 }, deviceScaleFactor: 2 });
   await p.setContent(html);
   await p.waitForTimeout(300);
+  fs.mkdirSync(DIR, { recursive: true });
   await p.screenshot({ path: DIR + 'cover.png' });
   await br.close();
   console.log('cover written');

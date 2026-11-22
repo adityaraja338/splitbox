@@ -8,9 +8,9 @@ Built on a trip to Zero Point, Sikkim, from a phone, with [Claude Code](https://
 "who pays whom" feature of the splitter we used went paid.
 
 <p align="center">
-  <img src="linkedin/1-expenses.png" width="240" alt="Trip expenses" />
-  <img src="linkedin/3-balances.png" width="240" alt="Who owes whom" />
-  <img src="linkedin/2-add-expense.png" width="240" alt="Add an expense with a custom split" />
+  <img src="docs/screenshots/1-expenses.png" width="240" alt="Trip expenses" />
+  <img src="docs/screenshots/3-balances.png" width="240" alt="Who owes whom" />
+  <img src="docs/screenshots/2-add-expense.png" width="240" alt="Add an expense with a custom split" />
 </p>
 
 ## Features

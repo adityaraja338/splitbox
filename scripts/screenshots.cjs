@@ -1,7 +1,7 @@
 const path = require('path');
 // Seeds a demo "Zero Point, Sikkim" trip on the local emulator and captures phone screenshots for the post.
 const { chromium } = require('playwright');
-const OUT = path.resolve(__dirname, '../linkedin') + '/';
+const OUT = path.resolve(__dirname, '../docs/screenshots') + '/';
 const BASE = process.env.E2E_BASE || (process.env.E2E_BASE || 'http://127.0.0.1:5173');
 
 // Mask the trip code everywhere it's shown, and keep transient toasts out of the shots
