@@ -158,6 +158,28 @@ export function suggestSettlements(balances) {
   return out;
 }
 
+/** Person ids an entry refers to. */
+export function entryPeople(e) {
+  return e.type === 'payment' ? [e.from, e.to] : [e.paidBy, ...Object.keys(e.split?.parts || {})];
+}
+
+/** Split the raw entry list into live entries and recently deleted ones (newest deletion first). */
+export function splitDeleted(all) {
+  const live = [];
+  const deleted = [];
+  for (const e of all) (e.deletedAt ? deleted : live).push(e);
+  const ms = (t) => t?.toMillis?.() ?? 0;
+  deleted.sort((a, b) => ms(b.deletedAt) - ms(a.deletedAt));
+  return { live, deleted };
+}
+
+/** A deleted entry can only come back if everyone it mentions is still in the trip. */
+export function canRestore(e, people) {
+  const ids = new Set(people.map((p) => p.id));
+  return entryPeople(e).every((id) => ids.has(id));
+}
+
+/** Only live entries count: deleted ones don't block removing someone (they just can't be restored). */
 export function isPersonUsed(personId, entries) {
   return entries.some((e) =>
     e.type === 'payment'

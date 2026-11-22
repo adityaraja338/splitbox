@@ -100,3 +100,18 @@ export function Toast({ message }) {
   if (!message) return null;
   return <div className="toast">{message}</div>;
 }
+
+/** "Added by Asha · last edited by Ravi". Names are self-reported (no accounts), so it's a courtesy trail. */
+export function AuditLine({ entry, people }) {
+  const name = (id) => people.find((p) => p.id === id)?.name;
+  const added = name(entry.createdBy);
+  const edited = entry.updatedBy && entry.updatedBy !== entry.createdBy ? name(entry.updatedBy) : null;
+  if (!added && !edited) return null;
+  return (
+    <p className="muted small audit">
+      {added && `Added by ${added}`}
+      {added && edited && ' · '}
+      {edited && `last edited by ${edited}`}
+    </p>
+  );
+}

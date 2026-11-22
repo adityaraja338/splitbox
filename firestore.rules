@@ -3,6 +3,10 @@ rules_version = '2';
 // No-auth model: knowing a trip's code (≈ 1 in 10^12 guess) is what grants access.
 // - Trips can be fetched by code but never listed, so codes can't be enumerated.
 // - Writes are schema-validated so the database can't be filled with junk shapes.
+// - Entries are never hard-deleted: "delete" sets deletedAt, so anything removed can be restored.
+// - createdAt/createdBy/type can't be rewritten after the fact.
+// Note: createdBy/updatedBy/deletedBy are person ids the client claims (there are no accounts),
+// so they're an honest-user audit trail, not proof of who did it.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -23,23 +27,49 @@ service cloud.firestore {
       return a is int && a > 0 && a < 100000000000;
     }
 
+    function optId(d, k) {
+      return !(k in d) || d[k] == null || (d[k] is string && d[k].size() <= 40);
+    }
+
     function validEntry(d) {
       return d.createdAt is timestamp
         && d.updatedAt == request.time
         && d.date is string && d.date.size() <= 10
         && (d.createdBy == null || d.createdBy is string)
+        && optId(d, 'updatedBy') && optId(d, 'deletedBy')
+        && (!('deletedAt' in d) || d.deletedAt is timestamp)
         && validAmount(d.amount)
         && (
           (d.type == 'expense'
-            && d.keys().hasOnly(['type', 'title', 'amount', 'paidBy', 'date', 'split', 'createdAt', 'updatedAt', 'createdBy'])
+            && d.keys().hasOnly(['type', 'title', 'amount', 'paidBy', 'date', 'split', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'deletedAt', 'deletedBy'])
             && d.title is string && d.title.size() > 0 && d.title.size() <= 100
             && d.paidBy is string
             && d.split is map && d.split.mode in ['equal', 'exact', 'shares'] && validParts(d.split.parts))
           ||
           (d.type == 'payment'
-            && d.keys().hasOnly(['type', 'from', 'to', 'amount', 'date', 'note', 'createdAt', 'updatedAt', 'createdBy'])
+            && d.keys().hasOnly(['type', 'from', 'to', 'amount', 'date', 'note', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'deletedAt', 'deletedBy'])
             && d.from is string && d.to is string && d.from != d.to
             && d.note is string && d.note.size() <= 100)
+        );
+    }
+
+    // Delete/restore may only touch the bookkeeping fields, never the content.
+    function onlyBookkeeping(after, before) {
+      return after.diff(before).affectedKeys().hasOnly(['deletedAt', 'deletedBy', 'updatedAt', 'updatedBy']);
+    }
+
+    function validEntryUpdate(after, before) {
+      return validEntry(after)
+        && after.type == before.type
+        && after.createdAt == before.createdAt
+        && after.get('createdBy', null) == before.get('createdBy', null)
+        && (
+          // edit a live entry
+          (!('deletedAt' in before) && !('deletedAt' in after))
+          // soft delete
+          || (!('deletedAt' in before) && after.get('deletedAt', null) == request.time && onlyBookkeeping(after, before))
+          // restore
+          || ('deletedAt' in before && !('deletedAt' in after) && onlyBookkeeping(after, before))
         );
     }
 
@@ -57,9 +87,10 @@ service cloud.firestore {
         allow read: if true;
         allow create: if exists(/databases/$(database)/documents/trips/$(code))
           && validEntry(request.resource.data)
+          && !('deletedAt' in request.resource.data) && !('deletedBy' in request.resource.data)
           && request.resource.data.createdAt == request.time;
-        allow update: if validEntry(request.resource.data);
-        allow delete: if true;
+        allow update: if validEntryUpdate(request.resource.data, resource.data);
+        allow delete: if false;
       }
     }
   }

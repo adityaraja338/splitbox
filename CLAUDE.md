@@ -37,6 +37,7 @@ build that points at the emulator. This exact mistake once took the live app dow
 | `src/components/Trip.jsx` | Trip page: loads trip + entries, computes stats/settlements, tabs. |
 | `src/components/Balances.jsx` | Your balance (`MySummary`), everyone's debts (simplify toggle, first 5 + Show all, hint), collapsible per-person rows. |
 | `src/components/People.jsx` | Cost per person (each person's share, `stats.spent`) + total; rename/remove behind Edit; trip settings. |
+| `src/components/Deleted.jsx` | "Recently deleted" dialog with Restore. |
 | `src/components/Pwa.jsx` | `UpdateBanner` (only when a deploy lands while the app is open) and `InstallCard` (Android prompt / iOS steps). |
 | `src/components/ui.jsx` | `Modal`, `Avatar` (colour by position in trip via `setTripPeople`), `CURRENCIES`. |
 | `firestore.rules` | Security rules with strict schema checks. |
@@ -55,10 +56,19 @@ trips/{CODE}                      CODE = 8 chars from 23456789ABCDEFGHJKLMNPQRST
 trips/{CODE}/entries/{id}
   expense: { type:'expense', title, amount, paidBy, date:'YYYY-MM-DD',
              split:{ mode:'equal'|'exact'|'shares', parts:{ personId: n } },
-             createdAt, updatedAt, createdBy }
+             createdAt, updatedAt, createdBy, updatedBy?, deletedAt?, deletedBy? }
            equal: parts = {id: 1}; exact: parts = {id: minor units}; shares: parts = {id: weight}
-  payment: { type:'payment', from, to, amount, date, note, createdAt, updatedAt, createdBy }
+  payment: { type:'payment', from, to, amount, date, note, createdAt, updatedAt, createdBy,
+             updatedBy?, deletedAt?, deletedBy? }
 ```
+
+- **Entries are never hard-deleted** (the rules deny it). Delete sets `deletedAt`/`deletedBy`
+  (`deleteEntry`), restore removes them (`restoreEntry`); the rules only let those two touch the
+  bookkeeping fields. `splitDeleted()` separates live entries from the "Recently deleted" list:
+  only live entries go into balances, totals and `isPersonUsed`. A deleted entry that mentions a
+  removed person can't be restored (`canRestore`).
+- `createdAt`, `createdBy` and `type` can't change after creation. `*By` fields are person ids the
+  client claims (no accounts), so they're an audit trail for honest users, not proof.
 
 - **All money is integer minor units (paise/cents).** Never use floats for amounts.
 - `stats.spent[id]` = that person's share of expenses (the People tab "cost per person");
@@ -96,8 +106,15 @@ trips/{CODE}/entries/{id}
 - The Firebase web API key in `src/firebase.js` is public by design. In Google Cloud it's restricted
   to Firestore only and to the splitbox/splitter-61a04/localhost referrers. Firestore itself ignores
   the key; **the rules are the real protection** (get by exact code only, no listing, schema
-  validation). If you add a custom domain, add it to the key's referrers (Google Cloud Console →
-  APIs & Services → Credentials).
+  validation, no hard deletes). If you add a custom domain, add it to the key's referrers (Google
+  Cloud Console → APIs & Services → Credentials) and to the reCAPTCHA key's domains.
+- **App Check** (reCAPTCHA v3) is wired in `src/firebase.js` and switches on when
+  `RECAPTCHA_SITE_KEY` (or `VITE_RECAPTCHA_SITE_KEY`) is set. It's skipped against the emulator.
+  With enforcement on in the Firebase console, requests without a token are rejected.
+- `firebase.json` sends a strict CSP plus `Referrer-Policy: strict-origin` (not `no-referrer`:
+  the API key's referrer restriction needs the origin), `X-Frame-Options: DENY` and `nosniff`.
+  **Any new third-party host (script, API, font, image) must be added to the CSP**, or the browser
+  blocks it. The dev server doesn't send these headers, so check new hosts with a production build.
 - Never commit `.env`, `.env.local`, service-account keys or debug logs.
 
 ## Working conventions

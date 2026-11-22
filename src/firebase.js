@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   connectFirestoreEmulator,
@@ -20,7 +21,17 @@ const config = {
 
 export const isConfigured = Boolean(config.projectId);
 
+// App Check (reCAPTCHA v3, invisible) proves requests come from the real site, so a script can't
+// burn the free Firestore quota. Public by design, like the API key. Empty = App Check off.
+// Once enforcement is switched on in the Firebase console, requests without a valid token fail.
+const RECAPTCHA_SITE_KEY = env.VITE_RECAPTCHA_SITE_KEY ?? '';
+
 const app = initializeApp(config);
+
+if (RECAPTCHA_SITE_KEY && !useEmulator) {
+  // Must run before Firestore makes its first request.
+  initializeAppCheck(app, { provider: new ReCaptchaV3Provider(RECAPTCHA_SITE_KEY), isTokenAutoRefreshEnabled: true });
+}
 
 let firestore;
 try {

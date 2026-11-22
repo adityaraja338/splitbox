@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseAmount, formatMoney, distribute, expenseShares, validateExpense,
   computeBalances, suggestSettlements, normalizeCode, generateCode,
+  splitDeleted, canRestore, isPersonUsed,
 } from './logic.js';
 
 describe('amounts', () => {
@@ -82,5 +83,27 @@ describe('pairwise debts', () => {
     const net = { a: 0, b: 0, c: 0 };
     for (const x of d) { net[x.from] -= x.amount; net[x.to] += x.amount; }
     expect(net).toEqual(balances);
+  });
+});
+
+describe('deleted entries', () => {
+  const ts = (ms) => ({ toMillis: () => ms });
+  const exp = (id, extra = {}) => ({ id, type: 'expense', title: id, amount: 100, paidBy: 'a', split: { mode: 'equal', parts: { a: 1, b: 1 } }, ...extra });
+  it('splits live from deleted, newest deletion first', () => {
+    const { live, deleted } = splitDeleted([exp('x'), exp('old', { deletedAt: ts(1) }), exp('new', { deletedAt: ts(2) })]);
+    expect(live.map((e) => e.id)).toEqual(['x']);
+    expect(deleted.map((e) => e.id)).toEqual(['new', 'old']);
+  });
+  it('only restores when everyone involved is still in the trip', () => {
+    const people = [{ id: 'a' }, { id: 'b' }];
+    expect(canRestore(exp('x'), people)).toBe(true);
+    expect(canRestore(exp('x'), [{ id: 'a' }])).toBe(false);
+    expect(canRestore({ type: 'payment', from: 'a', to: 'c' }, people)).toBe(false);
+  });
+  it('deleted entries never reach balances', () => {
+    const people = [{ id: 'a' }, { id: 'b' }];
+    const { live } = splitDeleted([exp('x', { deletedAt: ts(1) })]);
+    expect(computeBalances(people, live).balances).toEqual({ a: 0, b: 0 });
+    expect(isPersonUsed('b', live)).toBe(false);
   });
 });

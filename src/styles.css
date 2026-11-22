@@ -391,3 +391,7 @@ input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--primary)
   border: 1px solid var(--border); border-radius: 14px; padding: 8px 8px 8px 14px; font-size: 0.9rem;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); width: max-content; max-width: calc(100% - 24px);
 }
+
+/* "Added by … · last edited by …" under edit forms */
+.audit { margin: 12px 0 0; }
+.deleted-list .list-item:last-child { border-bottom: 0; }

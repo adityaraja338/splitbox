@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { watchTrip, watchEntries } from '../api.js';
-import { computeBalances, formatMoney, suggestSettlements, pairwiseDebts } from '../logic.js';
+import { computeBalances, formatMoney, suggestSettlements, pairwiseDebts, splitDeleted } from '../logic.js';
 import { getMe, setMe as storeMe, rememberTrip } from '../storage.js';
 import { navigate } from '../router.js';
 import { Avatar, Toast, setTripPeople } from './ui.jsx';
@@ -11,6 +11,7 @@ import ExpenseForm from './ExpenseForm.jsx';
 import PaymentForm from './PaymentForm.jsx';
 import Balances from './Balances.jsx';
 import People from './People.jsx';
+import Deleted from './Deleted.jsx';
 
 const TABS = [
   ['expenses', 'Expenses'],
@@ -22,12 +23,12 @@ export default function Trip({ code }) {
   const [trip, setTrip] = useState(undefined); // undefined = loading, null = not found
   const [offline, setOffline] = useState(false); // data shown is only from this device's cache
   const [slow, setSlow] = useState(false); // still waiting on the server after a while
-  const [entries, setEntries] = useState([]);
+  const [allEntries, setAllEntries] = useState([]); // includes soft-deleted ones
   const [error, setError] = useState('');
   const [me, setMeState] = useState(() => getMe(code));
   const [tab, setTab] = useState('expenses');
   const [picking, setPicking] = useState(false);
-  const [editing, setEditing] = useState(null); // {kind:'expense'|'payment', entry?, preset?}
+  const [editing, setEditing] = useState(null); // {kind:'expense'|'payment'|'deleted', entry?, preset?}
   const [toast, setToast] = useState('');
 
   const flash = useCallback((msg) => {
@@ -52,7 +53,7 @@ export default function Trip({ code }) {
       onErr,
     );
     const timer = setTimeout(() => setSlow(true), 8000);
-    const u2 = watchEntries(code, setEntries, onErr);
+    const u2 = watchEntries(code, setAllEntries, onErr);
     return () => { u1(); u2(); clearTimeout(timer); clearTimeout(offlineTimer); };
   }, [code]);
 
@@ -64,6 +65,7 @@ export default function Trip({ code }) {
     return () => { document.title = 'Splitbox'; };
   }, [trip?.name, code]);
 
+  const { live: entries, deleted } = useMemo(() => splitDeleted(allEntries), [allEntries]);
   const people = useMemo(() => trip?.people || [], [trip]);
   const byId = useMemo(() => Object.fromEntries(people.map((p) => [p.id, p])), [people]);
   setTripPeople(people);
@@ -208,6 +210,13 @@ export default function Trip({ code }) {
             hasPeople={people.length > 0}
           />
         )}
+        {tab === 'expenses' && deleted.length > 0 && (
+          <p className="center top-gap">
+            <button className="link-btn small" onClick={() => setEditing({ kind: 'deleted' })}>
+              Recently deleted ({deleted.length})
+            </button>
+          </p>
+        )}
         {tab === 'balances' && (
           <Balances
             people={people}
@@ -261,6 +270,18 @@ export default function Trip({ code }) {
           currency={cur}
           entry={editing.entry}
           preset={editing.preset}
+          onClose={() => setEditing(null)}
+          flash={flash}
+        />
+      )}
+      {editing?.kind === 'deleted' && (
+        <Deleted
+          code={code}
+          entries={deleted}
+          people={people}
+          byId={byId}
+          me={meValid}
+          currency={cur}
           onClose={() => setEditing(null)}
           flash={flash}
         />

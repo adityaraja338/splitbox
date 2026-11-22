@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { addEntry, updateEntry, deleteEntry } from '../api.js';
 import { parseAmount, toInput, formatMoney, expenseShares, validateExpense } from '../logic.js';
-import { Modal, Avatar } from './ui.jsx';
+import { Modal, Avatar, AuditLine } from './ui.jsx';
 
 const today = () => new Date().toLocaleDateString('en-CA'); // yyyy-mm-dd in local time
 
@@ -62,7 +62,7 @@ export default function ExpenseForm({ code, people, me, currency, entry, onClose
     setBusy(true);
     try {
       if (isEdit) {
-        await updateEntry(code, entry.id, { ...draft, createdAt: entry.createdAt, createdBy: entry.createdBy ?? null });
+        await updateEntry(code, entry.id, { ...draft, createdAt: entry.createdAt, createdBy: entry.createdBy ?? null }, me);
       } else {
         // Don't block the UI on the server round-trip; Firestore applies it locally right away.
         addEntry(code, { ...draft, createdBy: me || null }).catch((er) => flash(`Failed to save: ${er.message}`));
@@ -76,8 +76,8 @@ export default function ExpenseForm({ code, people, me, currency, entry, onClose
   }
 
   async function remove() {
-    if (!confirm(`Delete "${entry.title}"? This can't be undone.`)) return;
-    await deleteEntry(code, entry.id);
+    if (!confirm(`Delete "${entry.title}"? You can restore it from Recently deleted.`)) return;
+    await deleteEntry(code, entry.id, me);
     flash('Expense deleted');
     onClose();
   }
@@ -185,6 +185,7 @@ export default function ExpenseForm({ code, people, me, currency, entry, onClose
           ))}
         </ul>
         {error && <p className="error">{error}</p>}
+        {isEdit && <AuditLine entry={entry} people={people} />}
       </form>
     </Modal>
   );

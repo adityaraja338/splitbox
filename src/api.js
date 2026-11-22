@@ -1,6 +1,6 @@
 import {
-  doc, collection, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
-  onSnapshot, runTransaction, serverTimestamp, query, orderBy,
+  doc, collection, getDoc, setDoc, addDoc, updateDoc,
+  onSnapshot, runTransaction, serverTimestamp, deleteField, query, orderBy,
 } from 'firebase/firestore';
 import { db } from './firebase.js';
 import { generateCode, newId } from './logic.js';
@@ -89,15 +89,36 @@ export function removePerson(code, id) {
 }
 
 export function addEntry(code, entry) {
-  return addDoc(entriesRef(code), { ...entry, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return addDoc(entriesRef(code), {
+    ...entry,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    updatedBy: entry.createdBy ?? null,
+  });
 }
 
-export function updateEntry(code, id, entry) {
+/** `by` = person id of whoever is making the edit (or null). createdAt/createdBy must be passed through unchanged. */
+export function updateEntry(code, id, entry, by) {
   // setDoc (not merge) so switching split modes doesn't leave stale parts behind
-  const { id: _omit, ...rest } = entry;
-  return setDoc(doc(entriesRef(code), id), { ...rest, updatedAt: serverTimestamp() });
+  const { id: _omit, deletedAt: _d, deletedBy: _db, ...rest } = entry;
+  return setDoc(doc(entriesRef(code), id), { ...rest, updatedAt: serverTimestamp(), updatedBy: by ?? null });
 }
 
-export function deleteEntry(code, id) {
-  return deleteDoc(doc(entriesRef(code), id));
+/** Soft delete: the rules forbid real deletes, so anything removed can be restored. */
+export function deleteEntry(code, id, by) {
+  return updateDoc(doc(entriesRef(code), id), {
+    deletedAt: serverTimestamp(),
+    deletedBy: by ?? null,
+    updatedAt: serverTimestamp(),
+    updatedBy: by ?? null,
+  });
+}
+
+export function restoreEntry(code, id, by) {
+  return updateDoc(doc(entriesRef(code), id), {
+    deletedAt: deleteField(),
+    deletedBy: deleteField(),
+    updatedAt: serverTimestamp(),
+    updatedBy: by ?? null,
+  });
 }
