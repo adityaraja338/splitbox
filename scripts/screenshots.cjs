@@ -7,7 +7,7 @@ const BASE = process.env.E2E_BASE || (process.env.E2E_BASE || 'http://127.0.0.1:
 // Mask the trip code everywhere it's shown, and keep transient toasts out of the shots
 const MASK_CSS = `
   .code-chip { font-size: 0 !important; }
-  .code-chip::after { content: '•••••••• · Share'; font-size: 0.8rem; letter-spacing: 0.08em; }
+  .code-chip::after { content: '•••••••••• · Share'; font-size: 0.8rem; letter-spacing: 0.08em; }
   .toast { display: none !important; }
 `;
 

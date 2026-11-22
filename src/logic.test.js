@@ -58,7 +58,8 @@ describe('codes', () => {
   it('normalizes links', () => {
     expect(normalizeCode('https://x.web.app/t/ab12cd34')).toBe('AB12CD34');
     expect(normalizeCode(' ab12-cd34 ')).toBe('AB12CD34');
-    expect(generateCode()).toMatch(/^[2-9A-Z]{8}$/);
+    expect(generateCode()).toMatch(/^[2-9A-Z]{10}$/);
+    expect(normalizeCode('https://splitbox.web.app/t/abcd2345')).toBe('ABCD2345'); // old 8-char links still work
   });
 });
 

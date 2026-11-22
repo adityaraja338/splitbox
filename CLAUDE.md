@@ -48,7 +48,8 @@ build that points at the emulator. This exact mistake once took the live app dow
 ## Data model (Firestore)
 
 ```
-trips/{CODE}                      CODE = 8 chars from 23456789ABCDEFGHJKLMNPQRSTUVWXYZ
+trips/{CODE}                      CODE = 10 chars from 23456789ABCDEFGHJKLMNPQRSTUVWXYZ
+                                  (older trips: 8; rules accept 6–16)
   name, currency (symbol string), createdAt, createdUid?   (older trips have no createdUid)
   people: [{ id, name }]          APPEND-ONLY (rules). id = random hex; order = avatar colour
   personMeta?: { id: { name?, removed? } }   renames and soft removals, overlaid by tripPeople()

@@ -2,7 +2,8 @@
 
 const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 
-export function generateCode(length = 8) {
+// New trips get 10 characters (32^10 ≈ 10^15). Trips made before 2026-11 have 8; both work.
+export function generateCode(length = 10) {
   const bytes = new Uint8Array(length);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');

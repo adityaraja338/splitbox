@@ -15,7 +15,7 @@ Built on a trip to Zero Point, Sikkim, from a phone, with [Claude Code](https://
 
 ## Features
 
-- Create a trip and share its link (or 8-character code) with your group. No accounts.
+- Create a trip and share its link (or 10-character code) with your group. No accounts.
 - Everyone picks who they are on their own phone (remembered on that device).
 - Add expenses: who paid, who was involved, and split **equally**, by **exact amounts** or by **shares**.
 - **Who pays whom**: your balance, everyone's debts and a per-person breakdown. Tap **Mark paid** when someone settles up.
@@ -74,7 +74,8 @@ npm run deploy            # rebuilds, verifies, deploys hosting and Firestore ru
 
 ## Security model
 
-There is no login, so the trip code acts as the key: 8 random characters (~10¹² combinations).
+There is no login, so the trip code acts as the key: 10 random characters (~10¹⁵ combinations; trips created before
+November 2026 have 8, ~10¹²).
 `firestore.rules` lets anyone open a trip by its exact code but never list trips, so codes can't be discovered, and
 it validates the shape of every write. Anyone with a trip's link can view and edit that trip, so only share it with your group.
 

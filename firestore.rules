@@ -1,6 +1,7 @@
 rules_version = '2';
 
-// No-accounts model: knowing a trip's code (≈ 1 in 10^12 guess) is what grants access.
+// No-accounts model: knowing a trip's code is what grants access (10 random chars ≈ 1 in 10^15;
+// trips made before 2026-11 have 8 ≈ 1 in 10^12). Codes of 6–16 chars are accepted.
 // - Trips can be fetched by code but never listed, so codes can't be enumerated.
 // - Writes are schema-validated so the database can't be filled with junk shapes.
 // - Entries are never hard-deleted: "delete" sets deletedAt, so anything removed can be restored.
